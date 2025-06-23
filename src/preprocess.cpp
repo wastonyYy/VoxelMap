@@ -5,7 +5,9 @@
 
 Preprocess::Preprocess()
     : feature_enabled(0), lidar_type(AVIA), blind(0.01), point_filter_num(1) {
-  N_SCANS = 6;
+  // N_SCANS = 6;
+  /// mid360
+  N_SCANS = 4;
   given_offset_time = false;
 }
 
