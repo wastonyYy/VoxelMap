@@ -22,6 +22,7 @@ void Preprocess::set(bool feat_en, int lid_type, double bld, int pfilt_num) {
 
 void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg,
                          PointCloudXYZI::Ptr &pcl_out) {
+  // std::cout << "msg =" << msg << "n/";
   avia_handler(msg);
   *pcl_out = pl_surf;
 }

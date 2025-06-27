@@ -315,6 +315,7 @@ bool sync_packages(MeasureGroup &meas) {
       return false;
     }
     meas.lidar_beg_time = time_buffer.front();
+    // 利用点云中最后一个点的 curvature 字段 计算该帧结束时间
     lidar_end_time = meas.lidar_beg_time +
                      meas.lidar->points.back().curvature / double(1000);
     lidar_pushed = true;
@@ -584,6 +585,9 @@ int main(int argc, char **argv) {
   ros::Publisher pubPath = nh.advertise<nav_msgs::Path>("/path", 10);
   ros::Publisher voxel_map_pub =
       nh.advertise<visualization_msgs::MarkerArray>("/planes", 10000);
+  ros::Publisher pubRawCloud = 
+      nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100);
+
 
   path.header.stamp = ros::Time::now();
   path.header.frame_id = "camera_init";
@@ -699,16 +703,18 @@ int main(int argc, char **argv) {
         cout << "FAST-LIO not ready" << endl;
         continue;
       }
-
+//TODO 可能存在协方差问题的地方 ///////////////////////////////////////////////////
       flg_EKF_inited = (Measures.lidar_beg_time - first_lidar_time) < INIT_TIME
                            ? false
                            : true;
+      //  地图初始化
       if (flg_EKF_inited && !init_map) {
         pcl::PointCloud<pcl::PointXYZI>::Ptr world_lidar(
             new pcl::PointCloud<pcl::PointXYZI>);
         Eigen::Quaterniond q(state.rot_end);
         transformLidar(state, p_imu, feats_undistort, world_lidar);
         std::vector<pointWithCov> pv_list;
+        // 为每个转到世界坐标的点云 进行协方差误差传播
         for (size_t i = 0; i < world_lidar->size(); i++) {
           pointWithCov pv;
           pv.point << world_lidar->points[i].x, world_lidar->points[i].y,
@@ -726,6 +732,7 @@ int main(int argc, char **argv) {
           point_this += Lidar_offset_to_IMU;
           M3D point_crossmat;
           point_crossmat << SKEW_SYM_MATRX(point_this);
+          //??
           cov = state.rot_end * cov * state.rot_end.transpose() +
                 (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
                     (-point_crossmat).transpose() +
@@ -737,7 +744,8 @@ int main(int argc, char **argv) {
           sigma_pv[1] = sqrt(sigma_pv[1]);
           sigma_pv[2] = sqrt(sigma_pv[2]);
         }
-
+//TODO //////////////////////////////////////////////////////////////////
+        // 构建voxelmap
         buildVoxelMap(pv_list, max_voxel_size, max_layer, layer_size,
                       max_points_size, max_points_size, min_eigen_value,
                       voxel_map);

@@ -321,6 +321,7 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
       state_inout.pos_end + state_inout.rot_end * Lid_offset_to_IMU;
 
   /*** undistort each lidar point (backward propagation) ***/
+  // 对齐雷达测量时坐标系与扫描结束时坐标系
   auto it_pcl = pcl_out.points.end() - 1;
   for (auto it_kp = IMUpose.end() - 1; it_kp != IMUpose.begin(); it_kp--) {
     auto head = it_kp - 1;

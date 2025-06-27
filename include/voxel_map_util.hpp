@@ -136,6 +136,7 @@ public:
     plane->normal = Eigen::Vector3d::Zero();
     plane->points_size = points.size();
     plane->radius = 0;
+    // 点云质心与协方差矩阵
     for (auto pv : points) {
       plane->covariance += pv.point * pv.point.transpose();
       plane->center += pv.point;
@@ -143,22 +144,26 @@ public:
     plane->center = plane->center / plane->points_size;
     plane->covariance = plane->covariance / plane->points_size -
                         plane->center * plane->center.transpose();
+    // PCA 主成分分析（求特征值和特征向量）
     Eigen::EigenSolver<Eigen::Matrix3d> es(plane->covariance);
     Eigen::Matrix3cd evecs = es.eigenvectors();
     Eigen::Vector3cd evals = es.eigenvalues();
     Eigen::Vector3d evalsReal;
     evalsReal = evals.real();
     Eigen::Matrix3f::Index evalsMin, evalsMax;
+    // 找出最大、最小、中间特征值
+    //! 这里用了 trick：三个特征值总共有3个索引 (0,1,2)，中间值可直接推断为 3 - min - max
     evalsReal.rowwise().sum().minCoeff(&evalsMin);
     evalsReal.rowwise().sum().maxCoeff(&evalsMax);
     int evalsMid = 3 - evalsMin - evalsMax;
     Eigen::Vector3d evecMin = evecs.real().col(evalsMin);
     Eigen::Vector3d evecMid = evecs.real().col(evalsMid);
     Eigen::Vector3d evecMax = evecs.real().col(evalsMax);
-    // plane covariance calculation
+    // plane covariance calculation 计算平面协方差
     Eigen::Matrix3d J_Q;
     J_Q << 1.0 / plane->points_size, 0, 0, 0, 1.0 / plane->points_size, 0, 0, 0,
         1.0 / plane->points_size;
+    // 如果在主方向上离散性极小 → 很可能是个平面
     if (evalsReal(evalsMin) < planer_threshold_) {
       std::vector<int> index(points.size());
       std::vector<Eigen::Matrix<double, 6, 6>> temp_matrix(points.size());
@@ -535,12 +540,14 @@ void buildVoxelMap(const std::vector<pointWithCov> &input_points,
   for (uint i = 0; i < plsize; i++) {
     const pointWithCov p_v = input_points[i];
     float loc_xyz[3];
+    // 将点的坐标除以 voxel_size，转为格点坐标（整数索引）
     for (int j = 0; j < 3; j++) {
       loc_xyz[j] = p_v.point[j] / voxel_size;
       if (loc_xyz[j] < 0) {
         loc_xyz[j] -= 1.0;
       }
     }
+    // VOXEL_LOC 是一个三维整数索引，表示该点属于哪个体素
     VOXEL_LOC position((int64_t)loc_xyz[0], (int64_t)loc_xyz[1],
                        (int64_t)loc_xyz[2]);
     auto iter = feat_map.find(position);
@@ -561,6 +568,7 @@ void buildVoxelMap(const std::vector<pointWithCov> &input_points,
       feat_map[position]->layer_point_size_ = layer_point_size;
     }
   }
+  // 体素内 Octree 初始化
   for (auto iter = feat_map.begin(); iter != feat_map.end(); ++iter) {
     iter->second->init_octo_tree();
   }
