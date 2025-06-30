@@ -77,6 +77,7 @@ class Preprocess
 
   private:
   void avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg);
+  void mid360_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg);
   void oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
   void l515_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
   void velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);

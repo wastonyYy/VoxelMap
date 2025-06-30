@@ -199,6 +199,11 @@ public:
       plane->mid_eigen_value = evalsReal(evalsMid);
       plane->max_eigen_value = evalsReal(evalsMax);
       plane->radius = sqrt(evalsReal(evalsMax));
+      ROS_WARN("Plane[%d] eigenvalues: min=%.4f mid=%.4f max=%.4f", 
+             plane->id, 
+             plane->min_eigen_value,
+             plane->mid_eigen_value,
+             plane->max_eigen_value);
       plane->d = -(plane->normal(0) * plane->center(0) +
                    plane->normal(1) * plane->center(1) +
                    plane->normal(2) * plane->center(2));
@@ -632,6 +637,7 @@ void build_single_residual(const pointWithCov &pv, const OctoTree *current_octo,
                            const int current_layer, const int max_layer,
                            const double sigma_num, bool &is_sucess,
                            double &prob, ptpl &single_ptpl) {
+  //参数 
   double radius_k = 3;
   Eigen::Vector3d p_w = pv.point_world;
   if (current_octo->plane_ptr_->is_plane) {
@@ -647,8 +653,12 @@ void build_single_residual(const pointWithCov &pv, const OctoTree *current_octo,
         (plane.center(1) - p_w(1)) * (plane.center(1) - p_w(1)) +
         (plane.center(2) - p_w(2)) * (plane.center(2) - p_w(2));
     float range_dis = sqrt(dis_to_center - dis_to_plane * dis_to_plane);
+    // ROS_WARN("dis_to_center: %f", dis_to_center);
+    // ROS_WARN("range_dis: %f", range_dis);
+    // ROS_WARN("radius_k * plane.radius = %f" , radius_k * plane.radius);
 
     if (range_dis <= radius_k * plane.radius) {
+      // 公式(11)
       Eigen::Matrix<double, 1, 6> J_nq;
       J_nq.block<1, 3>(0, 0) = p_w - plane.center;
       J_nq.block<1, 3>(0, 3) = -plane.normal;
@@ -656,6 +666,7 @@ void build_single_residual(const pointWithCov &pv, const OctoTree *current_octo,
       sigma_l += plane.normal.transpose() * pv.cov * plane.normal;
       if (dis_to_plane < sigma_num * sqrt(sigma_l)) {
         is_sucess = true;
+        // 需要符合正态分布的3-西格玛原则
         double this_prob = 1.0 / (sqrt(sigma_l)) *
                            exp(-0.5 * dis_to_plane * dis_to_plane / sigma_l);
         if (this_prob > prob) {
@@ -839,6 +850,7 @@ void BuildResidualListOMP(const unordered_map<VOXEL_LOC, OctoTree *> &voxel_map,
       double prob = 0;
       build_single_residual(pv, current_octo, 0, max_layer, sigma_num,
                             is_sucess, prob, single_ptpl);
+      // 邻近搜索兜底机制
       if (!is_sucess) {
         VOXEL_LOC near_position = position;
         if (loc_xyz[0] >
@@ -869,14 +881,20 @@ void BuildResidualListOMP(const unordered_map<VOXEL_LOC, OctoTree *> &voxel_map,
         }
       }
       if (is_sucess) {
-
         mylock.lock();
         useful_ptpl[i] = true;
         all_ptpl_list[i] = single_ptpl;
+        ROS_WARN("BuildResidualListOMP SUCESS"); 
         mylock.unlock();
       } else {
         mylock.lock();
         useful_ptpl[i] = false;
+        // ROS_ERROR(
+        //     "BuildResidualListOMP: point not match, point: %f %f %f, "
+        //     "cov: %f %f %f",
+        //     pv.point_world(0), pv.point_world(1), pv.point_world(2),
+        //     pv.cov(0, 0), pv.cov(1, 1), pv.cov(2, 2));
+        // ROS_ERROR("BuildResidualListOMP FAILED"); 
         mylock.unlock();
       }
     }

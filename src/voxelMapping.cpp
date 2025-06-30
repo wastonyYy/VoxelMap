@@ -250,12 +250,12 @@ void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg) {
 
 void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg) {
   mtx_buffer.lock();
-  // cout << "got feature" << endl;
+  cout << "got feature" << endl;
   if (msg->header.stamp.toSec() < last_timestamp_lidar) {
     ROS_ERROR("lidar loop back, clear buffer");
     lidar_buffer.clear();
   }
-  // ROS_INFO("get point cloud at time: %.6f", msg->header.stamp.toSec());
+  ROS_INFO("get point cloud at time: %.6f", msg->header.stamp.toSec());
   PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
   p_pre->process(msg, ptr);
   lidar_buffer.push_back(ptr);
@@ -533,7 +533,7 @@ int main(int argc, char **argv) {
   nh.param<vector<double>>("imu/extrinsic_R", extrinR, vector<double>());
 
   // mapping algorithm params
-  nh.param<int>("mapping/max_iteration", NUM_MAX_ITERATIONS, 4);
+  nh.param<int>("mapping/max_iteration", NUM_MAX_ITERATIONS, 4); /// 4 
   nh.param<int>("mapping/max_points_size", max_points_size, 100);
   nh.param<int>("mapping/max_cov_points_size", max_cov_points_size, 100);
   nh.param<vector<double>>("mapping/layer_point_size", layer_point_size,
@@ -552,7 +552,7 @@ int main(int argc, char **argv) {
   nh.param<int>("preprocess/point_filter_num", p_pre->point_filter_num, 2);
 
   // visualization params
-  nh.param<bool>("visualization/pub_voxel_map", publish_voxel_map, false);
+  nh.param<bool>("visualization/pub_voxel_map", publish_voxel_map, true);
   nh.param<int>("visualization/publish_max_voxel_layer",
                 publish_max_voxel_layer, 0);
   nh.param<bool>("visualization/pub_point_cloud", publish_point_cloud, true);
@@ -733,10 +733,14 @@ int main(int argc, char **argv) {
           M3D point_crossmat;
           point_crossmat << SKEW_SYM_MATRX(point_this);
           //??
+          // cov = state.rot_end * cov * state.rot_end.transpose() +
+          //       (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
+          //           (-point_crossmat).transpose() +
+          //       state.cov.block<3, 3>(3, 3);
           cov = state.rot_end * cov * state.rot_end.transpose() +
-                (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
-                    (-point_crossmat).transpose() +
-                state.cov.block<3, 3>(3, 3);
+              state.rot_end * (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
+                  (-point_crossmat).transpose() * state.rot_end.transpose() +
+              state.cov.block<3, 3>(3, 3);
           pv.cov = cov;
           pv_list.push_back(pv);
           Eigen::Vector3d sigma_pv = pv.cov.diagonal();
@@ -759,6 +763,7 @@ int main(int argc, char **argv) {
           pubVoxelMap(voxel_map, publish_max_voxel_layer, voxel_map_pub);
         }
         init_map = true;
+        ROS_WARN("map initialized!");
         continue;
       }
 
@@ -878,14 +883,15 @@ int main(int argc, char **argv) {
                 .count() *
             1000;
 
-        // cout << "[ Matching ]: Time:"
-        //      << std::chrono::duration_cast<std::chrono::duration<double>>(
-        //             scan_match_time_end - scan_match_time_start)
-        //                 .count() *
-        //             1000
-        //      << " ms  Effective feature num: " << effct_feat_num
-        //      << " All num:" << feats_down_body->size() << "  res_mean_last "
-        //      << res_mean_last << endl;
+        cout << "[ Matching ]: Time:"
+             << std::chrono::duration_cast<std::chrono::duration<double>>(
+                    scan_match_time_end - scan_match_time_start)
+                        .count() *
+                    1000
+             << " ms  Effective feature num: " << effct_feat_num 
+             << " ptpl_list.size =" << ptpl_list.size() 
+             << " All num:" << feats_down_body->size() 
+             << "  res_mean_last " << res_mean_last << endl;
 
         auto t_solve_start = std::chrono::high_resolution_clock::now();
 
@@ -1045,8 +1051,8 @@ int main(int argc, char **argv) {
         M3D point_crossmat = crossmat_list[i];
         M3D cov = body_var[i];
         cov = state.rot_end * cov * state.rot_end.transpose() +
-              (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
-                  (-point_crossmat).transpose() +
+              state.rot_end * (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
+                  (-point_crossmat).transpose() * state.rot_end.transpose() +
               state.cov.block<3, 3>(3, 3);
         pv.cov = cov;
         pv_list.push_back(pv);
@@ -1065,8 +1071,8 @@ int main(int argc, char **argv) {
       total_time = t_downsample + scan_match_time + solve_time +
                    map_incremental_time + undistort_time + calc_point_cov_time;
       /******* Publish functions:  *******/
-      publish_odometry(pubOdomAftMapped);
-      publish_path(pubPath);
+      // publish_odometry(pubOdomAftMapped);
+      // publish_path(pubPath);
       tf::Transform transform;
       tf::Quaternion q;
       transform.setOrigin(

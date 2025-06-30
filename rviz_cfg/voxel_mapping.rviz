@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Grid1
         - /Axes1
         - /mapping1
         - /mapping1/currPoints1/Autocompute Value Bounds1
@@ -41,7 +42,7 @@ Visualization Manager:
   Class: ""
   Displays:
     - Alpha: 1
-      Cell Size: 3
+      Cell Size: 1
       Class: rviz/Grid
       Color: 160; 160; 164
       Enabled: true
@@ -55,7 +56,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 1000
+      Plane Cell Count: 10
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 1
@@ -102,8 +103,8 @@ Visualization Manager:
         - Alpha: 0.5
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 5.09712553024292
-            Min Value: -2.6818158626556396
+            Max Value: -9999
+            Min Value: 9999
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -503,7 +504,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 125.29436492919922
+      Distance: 64.87267303466797
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -511,17 +512,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 23.75105857849121
-        Y: -43.802215576171875
-        Z: -45.17890930175781
+        X: 41.330989837646484
+        Y: -15.743913650512695
+        Z: -21.668962478637695
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8447971940040588
+      Pitch: 0.4147975444793701
       Target Frame: camera_init
-      Yaw: 2.2085530757904053
+      Yaw: 2.8285627365112305
     Saved:
       - Class: rviz/Orbit
         Distance: 310.7291564941406
