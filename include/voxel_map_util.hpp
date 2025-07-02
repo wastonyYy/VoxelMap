@@ -127,9 +127,33 @@ public:
     }
     plane_ptr_ = new Plane;
   }
+  //! 公式(4)
+// 输入：点云pointsVec
+// 输出：平面参数
 
+// 计算质心q
+// 计算点云pointsVec协方差Cov
+// 对Cov进行特征分解L_min, L_middle, L_max，三个特征向量对应点云的正交分解
+// 选取最小特征值对应特征向量作为法向量n
+// if（L_min < planer_threshold_{
+// 	plane = [n q]
+// }else{
+// 	平面拟合失败
+// }
+// return plane;
   // check is plane , calc plane parameters including plane covariance
   void init_plane(const std::vector<pointWithCov> &points, Plane *plane) {
+    // 点坐标有效性检查
+    for (const auto& pv : points) {
+        if (!pv.point.allFinite()) {
+            ROS_ERROR("Invalid point detected: [%.2f, %.2f, %.2f] in voxel (%.2f, %.2f, %.2f)",
+                     pv.point.x(), pv.point.y(), pv.point.z(),
+                     plane->center.x(), plane->center.y(), plane->center.z());
+            return;
+        }
+    }
+    
+    // 初始化
     plane->plane_cov = Eigen::Matrix<double, 6, 6>::Zero();
     plane->covariance = Eigen::Matrix3d::Zero();
     plane->center = Eigen::Vector3d::Zero();
@@ -144,8 +168,17 @@ public:
     plane->center = plane->center / plane->points_size;
     plane->covariance = plane->covariance / plane->points_size -
                         plane->center * plane->center.transpose();
+    if (!plane->covariance.allFinite()) {
+      ROS_ERROR("init_plane: covariance matrix contains NaN or Inf.");
+      return;
+    }
     // PCA 主成分分析（求特征值和特征向量）
+    // 如果输入是零矩阵或病态矩阵（如所有点共线、重合），则 evecs.real() 或 evals.real() 可能出现 nan 或非法值
     Eigen::EigenSolver<Eigen::Matrix3d> es(plane->covariance);
+    if (!es.eigenvalues().real().allFinite()) {
+        ROS_ERROR("Eigen decomposition failed.");
+        return;
+    }
     Eigen::Matrix3cd evecs = es.eigenvectors();
     Eigen::Vector3cd evals = es.eigenvalues();
     Eigen::Vector3d evalsReal;
@@ -269,6 +302,23 @@ public:
     plane->center = sum_p / plane->points_size;
     plane->covariance = sum_ppt / plane->points_size -
                         plane->center * plane->center.transpose();
+     // 新增调试输出
+    ROS_WARN("Covariance calculation debug:");
+    ROS_WARN("Voxel center: (%.3f, %.3f, %.3f)", plane->center.x(), plane->center.y(), plane->center.z());
+    ROS_WARN("Point count: %d", plane->points_size);
+    ROS_WARN("Covariance matrix:\n%.3f %.3f %.3f\n%.3f %.3f %.3f\n%.3f %.3f %.3f",
+            plane->covariance(0,0), plane->covariance(0,1), plane->covariance(0,2),
+            plane->covariance(1,0), plane->covariance(1,1), plane->covariance(1,2),
+            plane->covariance(2,0), plane->covariance(2,1), plane->covariance(2,2));
+    
+    if (!plane->covariance.allFinite()) {
+      static ros::Time last_log_time(0.0);
+      if ((ros::Time::now() - last_log_time).toSec() > 5.0) {
+          ROS_ERROR("init_plane: covariance matrix contains NaN or Inf.");
+          last_log_time = ros::Time::now();
+      }
+      return;
+    }
     Eigen::EigenSolver<Eigen::Matrix3d> es(plane->covariance);
     Eigen::Matrix3cd evecs = es.eigenvectors();
     Eigen::Vector3cd evals = es.eigenvalues();
@@ -394,6 +444,7 @@ public:
       all_points_num_++;
       temp_points_.push_back(pv);
       if (temp_points_.size() > max_plane_update_threshold_) {
+        ROS_WARN("UpdateOctoTree");
         init_octo_tree();
       }
     } else {
@@ -575,6 +626,7 @@ void buildVoxelMap(const std::vector<pointWithCov> &input_points,
   }
   // 体素内 Octree 初始化
   for (auto iter = feat_map.begin(); iter != feat_map.end(); ++iter) {
+    ROS_WARN("buildVoxelMap");
     iter->second->init_octo_tree();
   }
 }
@@ -645,14 +697,38 @@ void build_single_residual(const pointWithCov &pv, const OctoTree *current_octo,
     Eigen::Vector3d p_world_to_center = p_w - plane.center;
     double proj_x = p_world_to_center.dot(plane.x_normal);
     double proj_y = p_world_to_center.dot(plane.y_normal);
+    // float dis_to_plane =
+    //     fabs(plane.normal(0) * p_w(0) + plane.normal(1) * p_w(1) +
+    //          plane.normal(2) * p_w(2) + plane.d);
+    // std::cout << "plane.normal = " << plane.normal.transpose() << std::endl;
+    // std::cout << "p_w = " << p_w.transpose() << std::endl;
+    // std::cout << "plane.d = " << plane.d << std::endl;
     float dis_to_plane =
-        fabs(plane.normal(0) * p_w(0) + plane.normal(1) * p_w(1) +
-             plane.normal(2) * p_w(2) + plane.d);
+        fabs(plane.normal.dot(p_w) + plane.d) / plane.normal.norm();
     float dis_to_center =
         (plane.center(0) - p_w(0)) * (plane.center(0) - p_w(0)) +
         (plane.center(1) - p_w(1)) * (plane.center(1) - p_w(1)) +
         (plane.center(2) - p_w(2)) * (plane.center(2) - p_w(2));
     float range_dis = sqrt(dis_to_center - dis_to_plane * dis_to_plane);
+    // if(plane.normal(2) != 0 && plane.normal(1) != 0 && plane.normal(0) != 0){
+    //   ROS_WARN("PLANE NORMAL");
+    // }
+    // else {
+    //   ROS_ERROR("PLANE NORMAL ERROR");
+    // }
+    // if(p_w(2) != 0 && p_w(1) != 0 && p_w(0) != 0){
+    //   ROS_WARN("POINT WORLD");
+    // }
+    // else {
+    //   ROS_ERROR("POINT WORLD ERROR");
+    // }
+    // if(plane.center(2) != 0 && plane.center(1) != 0 && plane.center(0) != 0){
+    //   ROS_WARN("PLANE center");
+    // }
+    // else {
+    //   ROS_ERROR("PLANE center ERROR");
+    // }
+    
     // ROS_WARN("dis_to_center: %f", dis_to_center);
     // ROS_WARN("range_dis: %f", range_dis);
     // ROS_WARN("radius_k * plane.radius = %f" , radius_k * plane.radius);
@@ -840,6 +916,7 @@ void BuildResidualListOMP(const unordered_map<VOXEL_LOC, OctoTree *> &voxel_map,
         loc_xyz[j] -= 1.0;
       }
     }
+    // 计算当前点所属的体素位置
     VOXEL_LOC position((int64_t)loc_xyz[0], (int64_t)loc_xyz[1],
                        (int64_t)loc_xyz[2]);
     auto iter = voxel_map.find(position);

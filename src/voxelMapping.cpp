@@ -8,7 +8,7 @@
 #include <fstream>
 #include <geometry_msgs/Vector3.h>
 #include <image_transport/image_transport.h>
-#include <livox_ros_driver/CustomMsg.h>
+#include <livox_ros_driver2/CustomMsg.h>
 #include <math.h>
 #include <mutex>
 #include <nav_msgs/Odometry.h>
@@ -42,10 +42,10 @@ std::vector<double> extrinT;
 std::vector<double> extrinR;
 
 // params for publish function
-bool publish_voxel_map = false;
+bool publish_voxel_map = true;
 int publish_max_voxel_layer = 0;
-bool publish_point_cloud = false;
-int pub_point_cloud_skip = 1;
+bool publish_point_cloud = true;
+int pub_point_cloud_skip = 0; // 1
 
 double intensity_min_thr = 0.0, intensity_max_thr = 1.0;
 
@@ -248,7 +248,7 @@ void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg) {
   sig_buffer.notify_all();
 }
 
-void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg) {
+void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg) {
   mtx_buffer.lock();
   cout << "got feature" << endl;
   if (msg->header.stamp.toSec() < last_timestamp_lidar) {
@@ -341,12 +341,13 @@ bool sync_packages(MeasureGroup &meas) {
   lidar_pushed = false;
   return true;
 }
-
+// 每隔point_skip个点发布一次世界系点云
 void publish_frame_world(const ros::Publisher &pubLaserCloudFullRes,
                          const int point_skip) {
   PointCloudXYZI::Ptr laserCloudFullRes(dense_map_en ? feats_undistort
                                                      : feats_down_body);
   int size = laserCloudFullRes->points.size();
+  // ROS_WARN("laserCloudFullRes size is: %d", size);
   PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI(size, 1));
   for (int i = 0; i < size; i++) {
     RGBpointBodyToWorld(&laserCloudFullRes->points[i],
@@ -356,6 +357,7 @@ void publish_frame_world(const ros::Publisher &pubLaserCloudFullRes,
   for (int i = 0; i < size; i += point_skip) {
     laserCloudWorldPub->points.push_back(laserCloudWorld->points[i]);
   }
+  // ROS_WARN("laserCloudWorld point size=%d", laserCloudWorldPub->points.size());
   sensor_msgs::PointCloud2 laserCloudmsg;
   pcl::toROSMsg(*laserCloudWorldPub, laserCloudmsg);
   laserCloudmsg.header.stamp =
@@ -556,7 +558,7 @@ int main(int argc, char **argv) {
   nh.param<int>("visualization/publish_max_voxel_layer",
                 publish_max_voxel_layer, 0);
   nh.param<bool>("visualization/pub_point_cloud", publish_point_cloud, true);
-  nh.param<int>("visualization/pub_point_cloud_skip", pub_point_cloud_skip, 1);
+  nh.param<int>("visualization/pub_point_cloud_skip", pub_point_cloud_skip, 0); // 1
   nh.param<bool>("visualization/dense_map_enable", dense_map_en, false);
 
   // result params
@@ -1091,7 +1093,6 @@ int main(int argc, char **argv) {
       if (publish_point_cloud) {
         publish_frame_world(pubLaserCloudFullRes, pub_point_cloud_skip);
       }
-
       if (publish_voxel_map) {
         pubVoxelMap(voxel_map, publish_max_voxel_layer, voxel_map_pub);
       }

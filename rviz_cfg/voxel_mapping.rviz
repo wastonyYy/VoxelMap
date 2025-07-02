@@ -8,6 +8,8 @@ Panels:
         - /Grid1
         - /Axes1
         - /mapping1
+        - /mapping1/surround1
+        - /mapping1/currPoints1
         - /mapping1/currPoints1/Autocompute Value Bounds1
         - /Odometry1
         - /Odometry1/Odometry1/Shape1
@@ -33,7 +35,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2
+    SyncSource: currPoints
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -504,7 +506,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 64.87267303466797
+      Distance: 56.93352508544922
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -512,17 +514,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 41.330989837646484
-        Y: -15.743913650512695
-        Z: -21.668962478637695
+        X: 40.36875915527344
+        Y: -8.603597640991211
+        Z: -26.306852340698242
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.4147975444793701
+      Pitch: 0.5947973728179932
       Target Frame: camera_init
-      Yaw: 2.8285627365112305
+      Yaw: 2.9135634899139404
     Saved:
       - Class: rviz/Orbit
         Distance: 310.7291564941406
